@@ -1,18 +1,16 @@
--- Bobr Soft | ESP Highlight
+-- Bobr Soft | Enemy Highlight ESP
 -- Compatible with most Roblox executors
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
--- GUI Setup
+-- GUI
 local ScreenGui = Instance.new("ScreenGui")
 local MainFrame = Instance.new("Frame")
 local Title = Instance.new("TextLabel")
 local Subtitle = Instance.new("TextLabel")
 local ESPToggle = Instance.new("TextButton")
 local CloseBtn = Instance.new("TextButton")
-local DragBar = Instance.new("Frame")
 
 ScreenGui.Name = "BobrSoft"
 ScreenGui.ResetOnSpawn = false
@@ -27,12 +25,10 @@ MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
--- Скругление
 local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(0, 8)
 Corner.Parent = MainFrame
 
--- Полоска сверху
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 28)
 TopBar.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
@@ -91,6 +87,20 @@ ToggleCorner.Parent = ESPToggle
 local ESPEnabled = false
 local highlights = {}
 
+local function isEnemy(player)
+    local localTeam = LocalPlayer.Team
+    if not localTeam then return true end
+    return player.Team ~= localTeam
+end
+
+local function isAlive(player)
+    local char = player.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return false end
+    return hum.Health > 0
+end
+
 local function removeESP(player)
     if highlights[player] then
         highlights[player]:Destroy()
@@ -100,27 +110,50 @@ end
 
 local function applyESP(player)
     if player == LocalPlayer then return end
+    if not isEnemy(player) then return end
+
     local function onChar(char)
         removeESP(player)
-        local hl = Instance.new("SelectionBox")
+
+        local hum = char:WaitForChild("Humanoid", 5)
+        if not hum then return end
+
+        local hl = Instance.new("Highlight")
         hl.Name = "BobrESP"
         hl.Adornee = char
-        hl.Color3 = Color3.fromRGB(255, 50, 50)
-        hl.LineThickness = 0.05
-        hl.SurfaceTransparency = 0.7
-        hl.SurfaceColor3 = Color3.fromRGB(255, 0, 0)
+        hl.FillColor = Color3.fromRGB(255, 50, 50)
+        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+        hl.FillTransparency = 0.5
+        hl.OutlineTransparency = 0
+        -- сквозь стены
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         hl.Parent = game.CoreGui
         highlights[player] = hl
+
+        hum.Died:Connect(function()
+            removeESP(player)
+        end)
     end
-    if player.Character then onChar(player.Character) end
-    player.CharacterAdded:Connect(onChar)
+
+    if player.Character and isAlive(player) then
+        onChar(player.Character)
+    end
+
+    player.CharacterAdded:Connect(function(char)
+        task.wait(0.1)
+        if isEnemy(player) and isAlive(player) then
+            onChar(char)
+        end
+    end)
 end
 
 local function enableESP()
     for _, p in pairs(Players:GetPlayers()) do
         applyESP(p)
     end
-    Players.PlayerAdded:Connect(applyESP)
+    Players.PlayerAdded:Connect(function(p)
+        applyESP(p)
+    end)
 end
 
 local function disableESP()
@@ -130,7 +163,6 @@ local function disableESP()
     end
 end
 
--- Кнопки
 ESPToggle.MouseButton1Click:Connect(function()
     ESPEnabled = not ESPEnabled
     if ESPEnabled then
